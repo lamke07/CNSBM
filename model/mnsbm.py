@@ -12,6 +12,7 @@ import pandas as pd
 import jax
 import jax.numpy as jnp
 from jax.scipy.special import digamma
+from collections import deque
 
 def robbins_monro_schedule(t, eta_0=0.01, tau=5000, kappa=0.75):
     return eta_0 / (1 + t / tau) ** kappa
@@ -162,7 +163,7 @@ class MNSBM:
 
         return phi_g
 
-    def batch_vi(self, num_iters, tol=1e-6, batch_print=50, fitted=False, update_ind=True):
+    def batch_vi(self, num_iters, tol=1e-6, batch_print=50, fitted=False, update_ind=True, window_size=5):
         # whether to use 1h encoded matrix
         self.C_1h = jax.nn.one_hot(jnp.where(self.C == -1, self.fill_na, self.C), num_classes=self.num_cat) if not update_ind else None
         
@@ -175,7 +176,9 @@ class MNSBM:
         print("Running batch variational inference...")
 
         # Run VI loop
-        elbo_prev = -jnp.inf
+        # elbo_prev = -jnp.inf
+        elbo_history = deque(maxlen=window_size)
+        elbo_prev_avg = None
         for i in range(num_iters):
             start_time = time.time()
             # Local updates
@@ -199,12 +202,20 @@ class MNSBM:
                 "LogLik": ll, "KL-g": KL_g, "KL-h": KL_h, "KL-kl": KL_kl
             })
 
-            if jnp.abs(elbo - elbo_prev) < tol:
-                print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
-                print(f"ELBO converged at iteration {i}.")
-                break
-            else:
-                elbo_prev = elbo
+            elbo_history.append(elbo)
+            # Wait until the buffer is full
+            if len(elbo_history) == window_size:
+                elbo_avg = jnp.mean(jnp.array(elbo_history))
+                
+                if elbo_prev_avg is not None and jnp.abs(elbo_avg - elbo_prev_avg) < tol:
+                    print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
+                    print(f"ELBO converged at iteration {i}.")
+                    break
+                
+                elbo_prev_avg = elbo_avg
+            # # if jnp.abs(elbo - elbo_prev) < tol:
+            # else:
+            #     elbo_prev = elbo
 
             if i % batch_print == 0:
                 print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
@@ -219,7 +230,7 @@ class MNSBM:
 
     def stochastic_vi(self, num_iters, batch_size, local_max_iters=100, local_tol=0.0005,
                       eta_0=0.1, tau=5000, kappa=0.75, batches_per_epoch=100, tol=1e-4, batch_print=50,
-                      fitted=False, update_ind=True):
+                      fitted=False, update_ind=True, window_size=5):
         if fitted:
             phi_g, phi_h, gamma_g, gamma_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_g', 'gamma_h', 'gamma_kl'))
         else:
@@ -239,7 +250,9 @@ class MNSBM:
         gamma_g, gamma_h, gamma_kl = self.gamma_g, self.gamma_h, self.gamma_kl
 
         # Run VI loop
-        elbo_prev = -jnp.inf
+        # elbo_prev = -jnp.inf
+        elbo_history = deque(maxlen=window_size)
+        elbo_prev_avg = None
         for i in range(num_iters):
             start_time = time.time()
 
@@ -311,12 +324,23 @@ class MNSBM:
                 "LogLik": ll, "KL-g": KL_g, "KL-h": KL_h, "KL-kl": KL_kl
             })
 
-            if jnp.abs(elbo - elbo_prev) < tol:
-                print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
-                print(f"ELBO converged at iteration {i}.")
-                break
-            else:
-                elbo_prev = elbo
+            elbo_history.append(elbo)
+            # Wait until the buffer is full
+            if len(elbo_history) == window_size:
+                elbo_avg = jnp.mean(jnp.array(elbo_history))
+                
+                if elbo_prev_avg is not None and jnp.abs(elbo_avg - elbo_prev_avg) < tol:
+                    print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
+                    print(f"ELBO converged at iteration {i}.")
+                    break
+                
+                elbo_prev_avg = elbo_avg
+            # if jnp.abs(elbo - elbo_prev) < tol:
+            #     print(f'Iteration {i}, ELBO: {elbo:,.3f}, Loglik: {ll:,.3f}, KL-g: {KL_g:,.3f}, KL-h: {KL_h:,.3f}, KL-kl: {KL_kl:,.3f}')
+            #     print(f"ELBO converged at iteration {i}.")
+            #     break
+            # else:
+            #     elbo_prev = elbo
 
             if i % batch_print == 0:
                 print("Local Updates:", local_iter_list)
