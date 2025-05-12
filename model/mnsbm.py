@@ -21,7 +21,12 @@ def robbins_monro_schedule(t, eta_0=0.01, tau=5000, kappa=0.75):
 class MNSBM:
     def __init__(self, C, K, L, alphas=None, phis=None, gammas=None,
                  init_clusters=None, rand_init='random', target_cats=None, target_concentration=None, 
-                 concentration=0.9, warm_start=False, fill_na=0):
+                 concentration=0.9, warm_start=False, fill_na=0, seed=42):
+        # Rng
+        self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
+        self.seeds = self.rng.integers(low=0, high=2**32, size=100, dtype=np.uint32)
+        
         # Matrix Size
         self.C = C
         self.N, self.M = self.C.shape
@@ -56,13 +61,13 @@ class MNSBM:
         self.training_history = []
         self.ICL_fitted = {}
 
-        print("Initializing variational distributions...")
+        print(f"Initializing variational distributions (seed {self.seed})...")
 
         # If using spectral clustering initialization
         if self.rand_init == 'spectral':
-            self.init_g, self.init_h, self.init_proportions = sc_init(self.C, self.K, self.L, self.num_cat, None)
+            self.init_g, self.init_h, self.init_proportions = sc_init(self.C, self.K, self.L, self.num_cat, self.seeds[0])
         elif self.rand_init == 'spectral_bi':
-            self.init_g, self.init_h, self.init_proportions = sc_bi_init(self.C, self.K, self.L, self.num_cat, None)
+            self.init_g, self.init_h, self.init_proportions = sc_bi_init(self.C, self.K, self.L, self.num_cat, self.seeds[1])
         elif self.rand_init == 'init':
             self.init_g, self.init_h = init_clusters['g'], init_clusters['h']
             if gammas is None and not warm_start:
@@ -73,7 +78,9 @@ class MNSBM:
                 self.init_proportions = gammas['gamma_kl'] - 1
             else:
                 # when using warm start based on cluster labels (self.init_proportions will be skipped by using update_gammas_warm)
-                self.init_proportions = np.random.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
+                rng = np.random.default_rng(self.seeds[2])
+                self.init_proportions = rng.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
+                # self.init_proportions = np.random.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
 
         # Initialize priors
         if alphas is None:
@@ -89,18 +96,25 @@ class MNSBM:
                 self.phi_g = jnp.full((self.N, self.K), 1.0 / self.K)  # q(g_i)
                 self.phi_h = jnp.full((self.M, self.L), 1.0 / self.L)  # q(h_j)
             elif self.rand_init in ['random', 'random_target']:
-                self.phi_g = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.K), size=self.N))  # Shape (N, K)
-                self.phi_h = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.L), size=self.M))  # Shape (M, L)
+                rng = np.random.default_rng(self.seeds[3])
+                rng1 = np.random.default_rng(self.seeds[4])
+                self.phi_g = jnp.asarray(rng.dirichlet(alpha=np.ones(self.K), size=self.N))  # Shape (N, K)
+                self.phi_h = jnp.asarray(rng1.dirichlet(alpha=np.ones(self.L), size=self.M))  # Shape (M, L)
+                # self.phi_g = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.K), size=self.N))  # Shape (N, K)
+                # self.phi_h = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.L), size=self.M))  # Shape (M, L)
             elif self.rand_init in ['spectral', 'spectral_bi', 'init']:
                 # self.phi_g = jnp.asarray(generate_phi(self.N, self.K, self.init_g, concentration=concentration))
                 # self.phi_h = jnp.asarray(generate_phi(self.M, self.L, self.init_h, concentration=concentration))
-                self.phi_g = generate_phi_g(self.N, self.K, self.init_g, concentration=concentration)
-                self.phi_h = generate_phi_h(self.M, self.L, self.init_h, concentration=concentration)
+                self.phi_g = generate_phi_g(self.N, self.K, self.init_g, concentration=concentration, key=jax.random.PRNGKey(self.seeds[5]))
+                self.phi_h = generate_phi_h(self.M, self.L, self.init_h, concentration=concentration, key=jax.random.PRNGKey(self.seeds[6]))
         else:
             self.phis = phis
             self.phi_g, self.phi_h = phis['phi_g'], phis['phi_h']
 
         if gammas is None:
+            rng = np.random.default_rng(self.seeds[7])
+            rng1 = np.random.default_rng(self.seeds[8])
+            rng2 = np.random.default_rng(self.seeds[9])
             if self.rand_init == 'uniform':
                 # uniform over the cluster probabilities and block distributions
                 self.gamma_g = jnp.ones(self.K)    # q(pi^g)
@@ -108,21 +122,29 @@ class MNSBM:
                 self.gamma_kl = jnp.ones((self.K, self.L, self.num_cat))  # q(pi^(k,l))
             elif self.rand_init == 'random':
                 # 2. Initialize gamma_g and gamma_h as positive values
-                self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
-                self.gamma_kl = np.random.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
+                self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                self.gamma_kl = rng2.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
+                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                # self.gamma_kl = np.random.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
             elif self.rand_init == 'random_target':
                 assert target_cats is not None and target_concentration is not None
                 # 2. Initialize gamma_g and gamma_h as positive values
-                self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
                 
                 alpha_kl = np.ones(self.num_cat)  # Base concentration
                 alpha_kl[target_cats] += target_concentration  # Add weight to target categories
-                self.gamma_kl = np.random.dirichlet(alpha=alpha_kl, size=(self.K, self.L))  # Shape (K, L, num_cat)
+                self.gamma_kl = rng2.dirichlet(alpha=alpha_kl, size=(self.K, self.L))  # Shape (K, L, num_cat)
+                # self.gamma_kl = np.random.dirichlet(alpha=alpha_kl, size=(self.K, self.L))  # Shape (K, L, num_cat)
             elif self.rand_init in ['spectral', 'spectral_bi', 'init']:
-                self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
+                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
+                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
                 self.gamma_kl = 1 + self.init_proportions
         else:
             self.gammas = gammas
