@@ -2,7 +2,7 @@ from .utils_mnsbm import (
     normalize_log_probs, 
     KLD_dirichlet, KLD_gpi, post_dir, log_post_dir,
     plt_blocks,
-    cluster_proportions, sc_init, sc_bi_init,
+    cluster_proportions, sc_init, sc_bi_init, estimate_obs_propensity,
     generate_phi_g, generate_phi_h, ICL_penalty, jax_array_to_csv
 )
 from . import utils_mnsbm
@@ -21,7 +21,7 @@ def robbins_monro_schedule(t, eta_0=0.01, tau=5000, kappa=0.75):
 class MNSBM:
     def __init__(self, C, K, L, alphas=None, phis=None, gammas=None,
                  init_clusters=None, rand_init='random', target_cats=None, target_concentration=None, 
-                 concentration=0.9, warm_start=False, fill_na=0, seed=42):
+                 concentration=0.9, warm_start=False, fill_na=0, propensity_mode=None, seed=42):
         # Rng
         self.seed = seed
         self.rng = np.random.default_rng(self.seed)
@@ -34,10 +34,13 @@ class MNSBM:
         self.fill_na = fill_na
 
         if not (self.C != -1).all():
-            print(f"Detecting missing values - will use missingness mask and fill missing values with {fill_na}")
-            self.C_mask = (self.C != -1)
-            self.C = jnp.where(self.C == -1, self.fill_na, self.C)
+            print(f"Detecting missing values - will use missingness mask (mode {propensity_mode}) and fill missing values with {fill_na}")
             self.missing = True
+            self.C = jnp.where(self.C == -1, self.fill_na, self.C)
+            if propensity_mode is None:
+                self.C_mask = (self.C != -1)
+            else:
+                self.C_mask = jnp.asarray(estimate_obs_propensity(np.array(self.C), mode=propensity_mode))
         else:
             self.C_mask = None
             self.missing = False

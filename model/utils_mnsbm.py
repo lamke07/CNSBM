@@ -538,6 +538,36 @@ def sc_bi_init(C, K, L, num_cat, random_state=0, method="log"):
 
 #     return phi
 
+
+def estimate_obs_propensity(C, mode='prod'):
+    """
+    C: np.ndarray of shape (N, M), possibly containing np.nan for missing values.
+
+    Returns:
+        propensity_matrix: np.ndarray of shape (N, M) with estimated probabilities,
+                           with 0 at the missing entries in C.
+    """
+    assert mode in ['prod', 'sum'], 'Only implemented for mode = prod or sum'
+    # Identify missing values
+    missing_mask = np.array(C != -1)
+
+    # Calculate row and column missing rates
+    row_missing_rate = np.mean(missing_mask, axis=1, keepdims=True)  # shape: (N, 1)
+    col_missing_rate = np.mean(missing_mask, axis=0, keepdims=True)  # shape: (1, M)
+
+    # Combine row and column effects
+    if mode == 'prod':
+        propensity = (row_missing_rate + col_missing_rate) / 2
+    elif mode == 'sum':
+        propensity = (row_missing_rate*col_missing_rate)
+
+    propensity = 1/propensity
+
+    # Set missing entries' propensity to 0
+    propensity[missing_mask==False] = 0
+
+    return propensity
+
 @partial(jax.jit, static_argnums=(0,1))
 def generate_phi_g(N, num_cat, clusters, concentration=0.9, key=None):
     if key is None:
