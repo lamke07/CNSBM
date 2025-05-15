@@ -103,11 +103,7 @@ class MNSBM:
                 rng1 = np.random.default_rng(self.seeds[4])
                 self.phi_g = jnp.asarray(rng.dirichlet(alpha=np.ones(self.K), size=self.N))  # Shape (N, K)
                 self.phi_h = jnp.asarray(rng1.dirichlet(alpha=np.ones(self.L), size=self.M))  # Shape (M, L)
-                # self.phi_g = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.K), size=self.N))  # Shape (N, K)
-                # self.phi_h = jnp.asarray(np.random.dirichlet(alpha=np.ones(self.L), size=self.M))  # Shape (M, L)
             elif self.rand_init in ['spectral', 'spectral_bi', 'init']:
-                # self.phi_g = jnp.asarray(generate_phi(self.N, self.K, self.init_g, concentration=concentration))
-                # self.phi_h = jnp.asarray(generate_phi(self.M, self.L, self.init_h, concentration=concentration))
                 self.phi_g = generate_phi_g(self.N, self.K, self.init_g, concentration=concentration, key=jax.random.PRNGKey(self.seeds[5]))
                 self.phi_h = generate_phi_h(self.M, self.L, self.init_h, concentration=concentration, key=jax.random.PRNGKey(self.seeds[6]))
         else:
@@ -128,26 +124,18 @@ class MNSBM:
                 self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
                 self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
                 self.gamma_kl = rng2.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
-                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
-                # self.gamma_kl = np.random.dirichlet(alpha=np.ones(self.num_cat), size=(self.K, self.L))  # Shape (K, L, num_cat)
             elif self.rand_init == 'random_target':
                 assert target_cats is not None and target_concentration is not None
                 # 2. Initialize gamma_g and gamma_h as positive values
                 self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
                 self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
-                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
                 
                 alpha_kl = np.ones(self.num_cat)  # Base concentration
                 alpha_kl[target_cats] += target_concentration  # Add weight to target categories
                 self.gamma_kl = rng2.dirichlet(alpha=alpha_kl, size=(self.K, self.L))  # Shape (K, L, num_cat)
-                # self.gamma_kl = np.random.dirichlet(alpha=alpha_kl, size=(self.K, self.L))  # Shape (K, L, num_cat)
             elif self.rand_init in ['spectral', 'spectral_bi', 'init']:
                 self.gamma_g = rng.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
                 self.gamma_h = rng1.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
-                # self.gamma_g = np.random.gamma(shape=2.0, scale=1.0, size=self.K)  # Shape (K,)
-                # self.gamma_h = np.random.gamma(shape=2.0, scale=1.0, size=self.L)  # Shape (L,)
                 self.gamma_kl = 1 + self.init_proportions
         else:
             self.gammas = gammas
@@ -220,6 +208,9 @@ class MNSBM:
 
             elbo, ll, KL_g, KL_h, KL_kl = self.elbo(phi_g, phi_h, gamma_g, gamma_h, gamma_kl, fitted=False, verbose=False)
             end_time = time.time()
+
+            if i == 0:
+                self.compilation_time = end_time - start_time
 
             # Save iteration results
             self.training_history.append({
@@ -342,6 +333,9 @@ class MNSBM:
 
             elbo, ll, KL_g, KL_h, KL_kl = self.elbo(phi_g, phi_h, gamma_g, gamma_h, gamma_kl, fitted=False, verbose=False)
             end_time = time.time()
+
+            if i == 0:
+                self.compilation_time = end_time - start_time
 
             # Save iteration results
             self.training_history.append({
