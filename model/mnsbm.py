@@ -332,7 +332,7 @@ class MNSBM:
                         
                 # print(f"Local Iters: {local_iter}")
                 local_iter_list[batch_idx] = local_iter
-                if not local_converged:
+                if not local_converged and (i % batch_print == 0):
                     print(f"Local updates did not converge in {local_max_iters} iterations.")
 
                 # intermediate global updates
@@ -407,25 +407,22 @@ class MNSBM:
             
             # compute ll and KL_g (individual batches + last batch)
             batch_starts_x = jnp.arange(0, self.N, batch_size_x)
-            print(batch_starts_x)
             for i in batch_starts_x[:-1]:
                 mask = self.C_mask[i:(i+batch_size_x),:] if self.missing else None
                 ll += self.loglik_q(self.C[i:(i+batch_size_x),:], phi_g[i:(i+batch_size_x),:], phi_h, gamma_kl, mask, self.missing)
                 KL_g += self.KLD_gpi(phi_g[i:(i+batch_size_x),:], gamma_g, self.alpha_g)
-            if batch_starts_x[-1] != 0:
-                i = batch_starts_x[-1]
-                mask = self.C_mask[i:,:] if self.missing else None
-                ll += self.loglik_q1(self.C[i:,:], phi_g[i:,:], phi_h, gamma_kl, mask, self.missing)
-                KL_g += self.KLD_gpi1(phi_g[i:,:], gamma_g, self.alpha_g)
+            i = batch_starts_x[-1]
+            mask = self.C_mask[i:,:] if self.missing else None
+            ll += self.loglik_q1(self.C[i:,:], phi_g[i:,:], phi_h, gamma_kl, mask, self.missing)
+            KL_g += self.KLD_gpi1(phi_g[i:,:], gamma_g, self.alpha_g)
 
             # compute KL_h (individual batches + last batch)
             batch_starts_y = jnp.arange(0, self.M, batch_size_y)
             print(batch_starts_y)
             for j in batch_starts_y[:-1]:
                 KL_h += self.KLD_hpi(phi_h[j:(j+batch_size_y),:], gamma_h, self.alpha_h)
-            if batch_starts_y[-1] != 0:
-                j = batch_starts_y[-1]
-                KL_h += self.KLD_hpi1(phi_h[j:,:], gamma_h, self.alpha_h)
+            j = batch_starts_y[-1]
+            KL_h += self.KLD_hpi1(phi_h[j:,:], gamma_h, self.alpha_h)
 
             # compute KL_kl
             KL_kl = KLD_dirichlet(gamma_kl, self.alpha_pi, axis=2).sum()
