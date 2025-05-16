@@ -6,7 +6,7 @@ from .utils_mnsbm import (
     generate_phi_g, generate_phi_h, ICL_penalty, jax_array_to_csv
 )
 from . import utils_mnsbm
-import os, time, gc, pickle
+import os, time, gc, pickle, functools
 import numpy as np
 import pandas as pd
 import jax
@@ -16,6 +16,9 @@ from collections import deque
 
 def robbins_monro_schedule(t, eta_0=0.01, tau=5000, kappa=0.75):
     return eta_0 / (1 + t / tau) ** kappa
+
+def svi_schedule(t, tau=1, kappa=0.9):
+    return (t + tau) ** (-kappa)
 
 """SBM Model"""
 class MNSBM:
@@ -52,6 +55,8 @@ class MNSBM:
         self.loglik_q = utils_mnsbm.loglik_q
         self.sbm_log_lik = utils_mnsbm.sbm_log_lik
         self.sbm_log_lik_slow = utils_mnsbm.sbm_log_lik_slow
+        self.KLD_gpi = functools.partial(KLD_gpi) #reuse function
+        self.KLD_hpi = functools.partial(KLD_gpi)
 
         # Cluster dimensions
         self.K, self.L = K, L
@@ -246,7 +251,7 @@ class MNSBM:
 
     def stochastic_vi(self, num_iters, batch_size, local_max_iters=100, local_tol=0.0005,
                       eta_0=0.1, tau=5000, kappa=0.75, batches_per_epoch=100, tol=1e-4, batch_print=50,
-                      fitted=False, update_ind=True, window_size=5):
+                      fitted=False, update_ind=True, window_size=5, scheduler='svi'):
         if fitted:
             phi_g, phi_h, gamma_g, gamma_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_g', 'gamma_h', 'gamma_kl'))
         else:
@@ -275,7 +280,10 @@ class MNSBM:
             local_iter_list = [0]*batches_per_epoch
             for batch_idx in range(batches_per_epoch):
                 t = i * batches_per_epoch + batch_idx  # Cumulative iteration
-                eta_t = robbins_monro_schedule(t, eta_0, tau, kappa)  # Compute learning rate
+                if scheduler=='svi':
+                    eta_t = svi_schedule(t, tau, kappa)
+                elif scheduler=='rb':
+                    eta_t = robbins_monro_schedule(t, eta_0, tau, kappa)  # Compute learning rate
 
                 # Batch subsample
                 i_select = sorted(np.random.choice(self.N, size=batch_size[0], replace=False))
