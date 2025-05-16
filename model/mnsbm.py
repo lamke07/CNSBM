@@ -53,10 +53,15 @@ class MNSBM:
         self.update_phi_h = utils_mnsbm.update_phi_h
         self.update_gamma_kl = utils_mnsbm.update_gamma_kl
         self.loglik_q = utils_mnsbm.loglik_q
-        self.sbm_log_lik = utils_mnsbm.sbm_log_lik
-        self.sbm_log_lik_slow = utils_mnsbm.sbm_log_lik_slow
         self.KLD_gpi = functools.partial(KLD_gpi) #reuse function
         self.KLD_hpi = functools.partial(KLD_gpi)
+        self.sbm_log_lik = utils_mnsbm.sbm_log_lik
+        self.sbm_log_lik_slow = utils_mnsbm.sbm_log_lik_slow
+
+        # for batched elbo computation when using stochastic VI
+        self.loglik_q1 = utils_mnsbm.loglik_q1
+        self.KLD_gpi1 = functools.partial(KLD_gpi)
+        self.KLD_hpi1 = functools.partial(KLD_gpi)
 
         # Cluster dimensions
         self.K, self.L = K, L
@@ -251,7 +256,8 @@ class MNSBM:
 
     def stochastic_vi(self, num_iters, batch_size, local_max_iters=100, local_tol=0.0005,
                       eta_0=0.1, tau=5000, kappa=0.75, batches_per_epoch=100, tol=1e-4, batch_print=50,
-                      fitted=False, update_ind=True, window_size=5, scheduler='svi'):
+                      fitted=False, update_ind=True, window_size=5, scheduler='svi',
+                      elbo_batch_size=None):
         if fitted:
             phi_g, phi_h, gamma_g, gamma_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_g', 'gamma_h', 'gamma_kl'))
         else:
@@ -264,7 +270,7 @@ class MNSBM:
         update_factor_h = self.M/batch_size[1]
         update_factor_kl = self.N*self.M/(batch_size[0]*batch_size[1])
 
-        print("Running stochastic variational inference...")
+        print(f"Running stochastic variational inference... ({batches_per_epoch} batches per epoch)")
 
         # Copy initial parameters
         phi_g, phi_h = self.phi_g, self.phi_h
@@ -339,7 +345,7 @@ class MNSBM:
                 gamma_h = (1-eta_t)*gamma_h + eta_t*int_gamma_h
                 gamma_kl = (1-eta_t)*gamma_kl + eta_t*int_gamma_kl
 
-            elbo, ll, KL_g, KL_h, KL_kl = self.elbo(phi_g, phi_h, gamma_g, gamma_h, gamma_kl, fitted=False, verbose=False)
+            elbo, ll, KL_g, KL_h, KL_kl = self.elbo(phi_g, phi_h, gamma_g, gamma_h, gamma_kl, fitted=False, verbose=False, elbo_batch_size=elbo_batch_size)
             end_time = time.time()
 
             if i == 0:
@@ -380,7 +386,7 @@ class MNSBM:
 
         return phi_g, phi_h, gamma_g, gamma_h, gamma_kl
 
-    def elbo(self, phi_g=None, phi_h=None, gamma_g=None, gamma_h=None, gamma_kl=None, fitted=False, verbose=False):
+    def elbo(self, phi_g=None, phi_h=None, gamma_g=None, gamma_h=None, gamma_kl=None, fitted=False, verbose=False, elbo_batch_size=None):
         if fitted:
             assert self.fitted
             phi_g, phi_h, gamma_g, gamma_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_g', 'gamma_h', 'gamma_kl'))
@@ -389,10 +395,40 @@ class MNSBM:
             assert gamma_g is not None and gamma_h is not None
             assert gamma_kl is not None
 
-        ll = utils_mnsbm.loglik_q(self.C, phi_g, phi_h, gamma_kl, self.C_mask, self.missing)
-        KL_g = KLD_gpi(phi_g, gamma_g, self.alpha_g)
-        KL_h = KLD_gpi(phi_h, gamma_h, self.alpha_h)
-        KL_kl = KLD_dirichlet(gamma_kl, self.alpha_pi, axis=2).sum()
+        # Compute all in one go (most efficient)
+        if elbo_batch_size is None:
+            ll = self.loglik_q(self.C, phi_g, phi_h, gamma_kl, self.C_mask, self.missing)
+            KL_g = self.KLD_gpi(phi_g, gamma_g, self.alpha_g)
+            KL_h = self.KLD_hpi(phi_h, gamma_h, self.alpha_h)
+            KL_kl = KLD_dirichlet(gamma_kl, self.alpha_pi, axis=2).sum()
+        else:
+            ll, KL_g, KL_h, KL_kl = 0, 0, 0, 0
+            batch_size_x, batch_size_y = elbo_batch_size
+            
+            # compute ll and KL_g (individual batches + last batch)
+            batch_starts_x = jnp.arange(0, self.N, batch_size_x)
+            print(batch_starts_x)
+            for i in batch_starts_x[:-1]:
+                mask = self.C_mask[i:(i+batch_size_x),:] if self.missing else None
+                ll += self.loglik_q(self.C[i:(i+batch_size_x),:], phi_g[i:(i+batch_size_x),:], phi_h, gamma_kl, mask, self.missing)
+                KL_g += self.KLD_gpi(phi_g[i:(i+batch_size_x),:], gamma_g, self.alpha_g)
+            if batch_starts_x[-1] != 0:
+                i = batch_starts_x[-1]
+                mask = self.C_mask[i:,:] if self.missing else None
+                ll += self.loglik_q1(self.C[i:,:], phi_g[i:,:], phi_h, gamma_kl, mask, self.missing)
+                KL_g += self.KLD_gpi1(phi_g[i:,:], gamma_g, self.alpha_g)
+
+            # compute KL_h (individual batches + last batch)
+            batch_starts_y = jnp.arange(0, self.M, batch_size_y)
+            print(batch_starts_y)
+            for j in batch_starts_y[:-1]:
+                KL_h += self.KLD_hpi(phi_h[j:(j+batch_size_y),:], gamma_h, self.alpha_h)
+            if batch_starts_y[-1] != 0:
+                j = batch_starts_y[-1]
+                KL_h += self.KLD_hpi1(phi_h[j:,:], gamma_h, self.alpha_h)
+
+            # compute KL_kl
+            KL_kl = KLD_dirichlet(gamma_kl, self.alpha_pi, axis=2).sum()
 
         elbo = ll - KL_g - KL_h - KL_kl
 

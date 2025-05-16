@@ -1,3 +1,4 @@
+import functools
 import pandas as pd
 import numpy as np
 import seaborn as sns
@@ -350,6 +351,16 @@ def loglik_q_mis(C, C_mask, phi_g, phi_h, gamma_kl):
             ll += (phi_outer*tmp).sum()
 
     return ll
+
+loglik_q_full1 = functools.partial(loglik_q_full)
+loglik_q_mis1 = functools.partial(loglik_q_mis)
+
+def loglik_q1(C, phi_g, phi_h, gamma_kl, C_mask=None, missing=False):
+    if not missing:
+        return loglik_q_full1(C, phi_g, phi_h, gamma_kl)
+    else:
+        assert C_mask is not None
+        return loglik_q_mis1(C, C_mask, phi_g, phi_h, gamma_kl)
 
 """Likelihood and posterior functions"""
 @jax.jit
