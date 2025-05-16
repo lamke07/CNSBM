@@ -418,7 +418,6 @@ class MNSBM:
 
             # compute KL_h (individual batches + last batch)
             batch_starts_y = jnp.arange(0, self.M, batch_size_y)
-            print(batch_starts_y)
             for j in batch_starts_y[:-1]:
                 KL_h += self.KLD_hpi(phi_h[j:(j+batch_size_y),:], gamma_h, self.alpha_h)
             j = batch_starts_y[-1]
