@@ -23,6 +23,8 @@ class MNSBMTrainer:
         else:
             self.C = self.C_fill
             self.fill_na = 0
+        self.seed = self.filled_sbm.seed
+        self.propensity_mode = self.filled_sbm.propensity_mode
         self.N, self.M = self.C.shape
         self.num_cat = int(self.C.max() + 1)
 
@@ -97,7 +99,7 @@ class MNSBMTrainer:
 
             # Fit new model with new initializations and warm starts for gamma
             print("\nFitting Model ...")
-            sbm_prop = MNSBM(self.C, self.K, self.L, init_clusters={'g': g_labels_new, 'h': h_labels_new}, rand_init='init', concentration=concentration, warm_start=True, fill_na=self.fill_na)
+            sbm_prop = MNSBM(self.C, self.K, self.L, init_clusters={'g': g_labels_new, 'h': h_labels_new}, rand_init='init', concentration=concentration, warm_start=True, fill_na=self.fill_na, seed=self.seed+self.curr_iter, propensity_mode=self.propensity_mode)
             sbm_prop.update_gammas_warm(update_ind=False)
             if batch_vi:
                 _ = sbm_prop.batch_vi(max_vi_iter, batch_print=vi_batch_print)
@@ -178,7 +180,8 @@ class MNSBMTrainer:
             sbm_prop = MNSBM(self.C, self.K, self.L, 
                     init_clusters={'g': g_labels, 'h': h_labels}, rand_init='init',
                     gammas={'gamma_g': gamma_g, 'gamma_h': gamma_h, 'gamma_kl': gamma_kl}, 
-                    concentration=concentration, warm_start=True, fill_na=self.fill_na
+                    concentration=concentration, warm_start=True, fill_na=self.fill_na,
+                    seed=self.seed + self.curr_iter, propensity_mode=self.propensity_mode
                 )
 
             if batch_vi:
@@ -228,7 +231,8 @@ class MNSBMTrainer:
             sbm_prop = MNSBM(self.C, self.K, self.L, 
                     init_clusters={'g': g_labels, 'h': h_labels}, rand_init='init',
                     gammas={'gamma_g': gamma_g, 'gamma_h': gamma_h, 'gamma_kl': gamma_kl}, 
-                    concentration=concentration, warm_start=True, fill_na=self.fill_na
+                    concentration=concentration, warm_start=True, fill_na=self.fill_na,
+                    seed=self.seed + self.curr_iter, propensity_mode=self.propensity_mode
                 )
 
             if batch_vi:

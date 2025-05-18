@@ -35,15 +35,16 @@ class MNSBM:
         self.N, self.M = self.C.shape
         self.num_cat = int(C.max() + 1)
         self.fill_na = fill_na
+        self.propensity_mode = propensity_mode
 
         if not (self.C != -1).all():
             print(f"Detecting missing values - will use missingness mask (mode {propensity_mode}) and fill missing values with {fill_na}")
             self.missing = True
             self.C = jnp.where(self.C == -1, self.fill_na, self.C)
-            if propensity_mode is None:
+            if self.propensity_mode is None:
                 self.C_mask = (self.C != -1)
             else:
-                self.C_mask = jnp.asarray(estimate_obs_propensity(np.array(self.C), mode=propensity_mode))
+                self.C_mask = jnp.asarray(estimate_obs_propensity(np.array(self.C), mode=self.propensity_mode))
         else:
             self.C_mask = None
             self.missing = False
