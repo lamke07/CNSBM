@@ -420,6 +420,26 @@ def sbm_log_lik_slow(C, log_probs, g, h, num_cat, C_mask=None):
 
     return out
 
+def compute_cluster_ll(labels, eps=1e-12):
+    labels = np.array(labels)
+    n = len(labels)
+    num_clusters = np.max(labels)+1
+    
+    # Count occurrences of each label from 0 to num_clusters - 1
+    counts = np.bincount(labels, minlength=num_clusters)
+    
+    # Empirical probabilities (MLE)
+    probs = counts / n
+    
+    # Filter out zero counts to avoid log(0)
+    nonzero_counts = counts[counts > 0]
+    nonzero_probs = probs[counts > 0]
+    
+    # Log-likelihood: sum_k count_k * log(prob_k)
+    log_likelihood = np.sum(nonzero_counts * np.log(nonzero_probs+eps))
+    
+    return log_likelihood
+
 ################################################
 
 """Plotting Functions"""

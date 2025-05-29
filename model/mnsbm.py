@@ -3,7 +3,8 @@ from .utils_mnsbm import (
     KLD_dirichlet, KLD_gpi, post_dir, log_post_dir,
     plt_blocks,
     cluster_proportions, sc_init, sc_bi_init, estimate_obs_propensity,
-    generate_phi_g, generate_phi_h, ICL_penalty, jax_array_to_csv
+    generate_phi_g, generate_phi_h, ICL_penalty, jax_array_to_csv,
+    compute_cluster_ll
 )
 from . import utils_mnsbm
 import os, time, gc, pickle, functools
@@ -455,15 +456,19 @@ class MNSBM:
 
         ICL_pen = ICL_penalty(self.N, self.M, K_unique, L_unique, self.num_cat)
         ll = self.loglik_fitted(slow=slow)
+        
+        # row/col cluster entropy
+        g_entr = compute_cluster_ll(np.array(g_labels).squeeze())
+        h_entr = compute_cluster_ll(np.array(h_labels).squeeze())
 
-        ICL = ll - ICL_pen
+        ICL = ll + g_entr + h_entr - ICL_pen
 
         if verbose:
-            print(f'ICL: {ICL:,.3f}, Loglik: {ll:,.3f}, ICL-penalty: {ICL_pen:,.3f}, K-eff: {K_unique}, L-eff: {L_unique}')
+            print(f'ICL: {ICL:,.3f}, Loglik: {ll:,.3f}, ICL-penalty: {ICL_pen:,.3f}, g-entr: {g_entr:,.3f}, h-entr: {h_entr:,.3f}, K-eff: {K_unique}, L-eff: {L_unique}')
 
-        self.ICL_fitted = {'ICL': ICL, 'Loglik': ll, 'ICL_pen': ICL_pen, 'K-eff': K_unique, 'L-eff': L_unique}
+        self.ICL_fitted = {'ICL': ICL, 'Loglik': ll, 'ICL_pen': ICL_pen, 'g_entr': g_entr, 'h_entr': h_entr, 'K-eff': K_unique, 'L-eff': L_unique}
 
-        return ll - ICL_pen
+        return ICL
 
     def set_posteriors(self):
         # Obtain fitted parameters and MAP
