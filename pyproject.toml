@@ -10,12 +10,11 @@ authors = [
 ]
 description = "Categorical Block Modelling For Primary and Residual Copy Number Variation"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -57,10 +56,10 @@ gpu = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lamke07/cnsbm2025"
-Documentation = "https://github.com/lamke07/cnsbm2025#readme"
-Repository = "https://github.com/lamke07/cnsbm2025"
-"Bug Tracker" = "https://github.com/lamke07/cnsbm2025/issues"
+Homepage = "https://github.com/lamke07/CNSBM"
+Documentation = "https://github.com/lamke07/CNSBM#readme"
+Repository = "https://github.com/lamke07/CNSBM"
+"Bug Tracker" = "https://github.com/lamke07/CNSBM/issues"
 "Paper" = "https://arxiv.org/abs/2506.22963"
 
 [tool.setuptools.packages.find]

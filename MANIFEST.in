@@ -6,7 +6,6 @@ include environment.yml
 
 # Include configuration files
 include pyproject.toml
-include setup.py
 
 # Exclude build and cache files
 global-exclude __pycache__/*
