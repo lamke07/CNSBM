@@ -1,0 +1,11 @@
+# Core dependencies for CNSBM
+numpy>=1.21.0,<3.0.0
+pandas>=1.3.0
+scipy>=1.7.0
+scikit-learn>=1.0.0
+matplotlib>=3.3.0
+seaborn>=0.11.0
+jax>=0.3.0
+
+# Note: For NumPy compatibility with pickled models, 
+# you may need to use numpy<2.0.0 if loading old pickle files

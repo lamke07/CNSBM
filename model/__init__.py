@@ -1,10 +1,18 @@
-from .mnsbm import MNSBM
-# from .mnsbm_dual import MNSBMDual
-from .mnsbm_dual_D import MNSBMDual_D
-from .mnsbm_trainer import MNSBMTrainer
+"""
+CNSBM: Categorical Block Modelling For Primary and Residual Copy Number Variation
 
-# from .mnsbm_utils import *  # Import utility functions
-# from .mnsbm_trainer_utils import *  # Import utility functions
-# from . import mnsbm_missing_utils  # Import utility functions
-# from . import mnsbm_dual_utils  # Import utility functions
-# from . import utils_dual_D  # Import utility functions
+A Python package for stochastic block modeling of categorical matrices with support
+for missing values and copy number variation analysis.
+"""
+
+__version__ = "1.0.0"
+__author__ = "Kevin Lam"
+__email__ = "kevin.lam@stat.ubc.ca"
+
+from .cnsbm import CNSBM
+from .cnsbm_trainer import CNSBMTrainer
+
+__all__ = [
+    "CNSBM",
+    "CNSBMTrainer",
+]

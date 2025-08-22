@@ -9,5 +9,5 @@ dependencies:
   - scipy
   - pip
   - pip:
-    - numpy<2.0
+    - numpy
 

@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cnsbm"
+version = "1.0.0"
+authors = [
+    {name = "Kevin Lam", email = "kevin.lam@stat.ubc.ca"},
+]
+description = "Categorical Block Modelling For Primary and Residual Copy Number Variation"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+keywords = [
+    "machine learning",
+    "stochastic block model",
+    "copy number variation",
+    "bioinformatics",
+    "clustering",
+    "variational inference",
+]
+
+dependencies = [
+    "numpy>=1.21.0,<3.0.0",
+    "pandas>=1.3.0",
+    "scipy>=1.7.0",
+    "scikit-learn>=1.0.0",
+    "matplotlib>=3.3.0",
+    "seaborn>=0.11.0",
+    "jax>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "black",
+    "flake8",
+    "mypy",
+    "jupyter",
+]
+gpu = [
+    "jax[cuda]>=0.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lamke07/cnsbm2025"
+Documentation = "https://github.com/lamke07/cnsbm2025#readme"
+Repository = "https://github.com/lamke07/cnsbm2025"
+"Bug Tracker" = "https://github.com/lamke07/cnsbm2025/issues"
+"Paper" = "https://arxiv.org/abs/2506.22963"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cnsbm*"]
+
+[tool.setuptools.package-data]
+cnsbm = ["py.typed"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

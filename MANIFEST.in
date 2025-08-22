@@ -1,0 +1,28 @@
+# Include important documentation
+include README.md
+include LICENSE
+include requirements.txt
+include environment.yml
+
+# Include configuration files
+include pyproject.toml
+include setup.py
+
+# Exclude build and cache files
+global-exclude __pycache__/*
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.swp
+
+# Exclude development files
+exclude .gitignore
+exclude .gitattributes
+recursive-exclude .git *
+recursive-exclude .vscode *
+recursive-exclude .ipynb_checkpoints *
+
+# Exclude output directory (user-generated content)
+recursive-exclude output *
+
+# Include example notebook (optional)
+include cn_vi-simple.ipynb

@@ -3,13 +3,13 @@ from .utils_trainer import (
     new_cluster_labels_single, get_cluster_sizes, new_cluster_labels_block,
     row_col_impurity, reset_min_clusters, reset_duplicated_clusters
 )
-from .mnsbm import MNSBM
+from .cnsbm import CNSBM
 import pickle
 import pandas as pd # remove this later
 import numpy as np
 import jax.numpy as jnp
 
-class MNSBMTrainer:
+class CNSBMTrainer:
     def __init__(self, init_sbm):
         # assign first sbm model
         assert init_sbm.fitted
@@ -99,7 +99,7 @@ class MNSBMTrainer:
 
             # Fit new model with new initializations and warm starts for gamma
             print("\nFitting Model ...")
-            sbm_prop = MNSBM(self.C, self.K, self.L, init_clusters={'g': g_labels_new, 'h': h_labels_new}, rand_init='init', concentration=concentration, warm_start=True, fill_na=self.fill_na, seed=self.seed+self.curr_iter, propensity_mode=self.propensity_mode)
+            sbm_prop = CNSBM(self.C, self.K, self.L, init_clusters={'g': g_labels_new, 'h': h_labels_new}, rand_init='init', concentration=concentration, warm_start=True, fill_na=self.fill_na, seed=self.seed+self.curr_iter, propensity_mode=self.propensity_mode)
             sbm_prop.update_gammas_warm(update_ind=False)
             if batch_vi:
                 _ = sbm_prop.batch_vi(max_vi_iter, batch_print=vi_batch_print)
@@ -177,7 +177,7 @@ class MNSBMTrainer:
             curr_direction = np.random.choice(['row', 'col']) if direction != 'multi' else direction
             gamma_kl = reset_min_clusters(g_labels.tolist(), h_labels.tolist(), gamma_kl, alpha_pi, min_samples_g=min_samples_g, min_samples_h=min_samples_h, direction=curr_direction)
 
-            sbm_prop = MNSBM(self.C, self.K, self.L, 
+            sbm_prop = CNSBM(self.C, self.K, self.L, 
                     init_clusters={'g': g_labels, 'h': h_labels}, rand_init='init',
                     gammas={'gamma_g': gamma_g, 'gamma_h': gamma_h, 'gamma_kl': gamma_kl}, 
                     concentration=concentration, warm_start=True, fill_na=self.fill_na,
@@ -228,7 +228,7 @@ class MNSBMTrainer:
             curr_direction = np.random.choice(['row', 'col']) if direction != 'multi' else direction
             gamma_kl = reset_duplicated_clusters(phi_g, phi_h, dir_mean, gamma_kl, alpha_pi, empty_threshold=empty_threshold, verbose=verbose, posterior_map=posterior_map, direction=curr_direction)
 
-            sbm_prop = MNSBM(self.C, self.K, self.L, 
+            sbm_prop = CNSBM(self.C, self.K, self.L, 
                     init_clusters={'g': g_labels, 'h': h_labels}, rand_init='init',
                     gammas={'gamma_g': gamma_g, 'gamma_h': gamma_h, 'gamma_kl': gamma_kl}, 
                     concentration=concentration, warm_start=True, fill_na=self.fill_na,
@@ -287,4 +287,4 @@ class MNSBMTrainer:
             pickle.dump(params, f)
 
         # with open(os.path.join(cwd, 'trainer_test.pkl'), "rb") as f:
-        #     params1 = pickle.load(f)
+        #     params = pickle.load(f)

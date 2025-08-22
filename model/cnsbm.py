@@ -1,4 +1,4 @@
-from .utils_mnsbm import (
+from .utils_cnsbm import (
     normalize_log_probs, 
     KLD_dirichlet, KLD_gpi, post_dir, log_post_dir,
     plt_blocks,
@@ -6,7 +6,7 @@ from .utils_mnsbm import (
     generate_phi_g, generate_phi_h, ICL_penalty, jax_array_to_csv,
     compute_cluster_ll
 )
-from . import utils_mnsbm
+from . import utils_cnsbm
 import os, time, gc, pickle, functools
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ def svi_schedule(t, tau=1, kappa=0.9):
     return (t + tau) ** (-kappa)
 
 """SBM Model"""
-class MNSBM:
+class CNSBM:
     def __init__(self, C, K, L, alphas=None, phis=None, gammas=None,
                  init_clusters=None, rand_init='random', target_cats=None, target_concentration=None, 
                  concentration=0.9, warm_start=False, fill_na=0, propensity_mode=None, seed=42):
@@ -42,6 +42,7 @@ class MNSBM:
             print(f"Detecting missing values - will use missingness mask (mode {propensity_mode}) and fill missing values with {fill_na}")
             self.missing = True
             self.C = jnp.where(self.C == -1, self.fill_na, self.C)
+            self.num_mis = (self.C == -1).sum()
             if self.propensity_mode is None:
                 self.C_mask = (self.C != -1)
             else:
@@ -49,19 +50,20 @@ class MNSBM:
         else:
             self.C_mask = None
             self.missing = False
+            self.num_mis = 0
 
         # Initialize update functions
-        self.update_phi_g = utils_mnsbm.update_phi_g
-        self.update_phi_h = utils_mnsbm.update_phi_h
-        self.update_gamma_kl = utils_mnsbm.update_gamma_kl
-        self.loglik_q = utils_mnsbm.loglik_q
+        self.update_phi_g = utils_cnsbm.update_phi_g
+        self.update_phi_h = utils_cnsbm.update_phi_h
+        self.update_gamma_kl = utils_cnsbm.update_gamma_kl
+        self.loglik_q = utils_cnsbm.loglik_q
         self.KLD_gpi = functools.partial(KLD_gpi) #reuse function
         self.KLD_hpi = functools.partial(KLD_gpi)
-        self.sbm_log_lik = utils_mnsbm.sbm_log_lik
-        self.sbm_log_lik_slow = utils_mnsbm.sbm_log_lik_slow
+        self.sbm_log_lik = utils_cnsbm.sbm_log_lik
+        self.sbm_log_lik_slow = utils_cnsbm.sbm_log_lik_slow
 
         # for batched elbo computation when using stochastic VI
-        self.loglik_q1 = utils_mnsbm.loglik_q1
+        self.loglik_q1 = utils_cnsbm.loglik_q1
         self.KLD_gpi1 = functools.partial(KLD_gpi)
         self.KLD_hpi1 = functools.partial(KLD_gpi)
 
@@ -161,8 +163,8 @@ class MNSBM:
             self.C_1h = None
 
         self.gamma_kl = self.update_gamma_kl(self.alpha_pi, self.phi_g, self.phi_h, self.C, self.K, self.L, self.C_mask, self.C_1h, self.num_cat, update_factor=1, update_ind=update_ind, missing=self.missing)
-        self.gamma_g = utils_mnsbm.update_gamma_g(self.alpha_g, self.phi_g, update_factor=1)
-        self.gamma_h = utils_mnsbm.update_gamma_h(self.alpha_h, self.phi_h, update_factor=1)
+        self.gamma_g = utils_cnsbm.update_gamma_g(self.alpha_g, self.phi_g, update_factor=1)
+        self.gamma_h = utils_cnsbm.update_gamma_h(self.alpha_h, self.phi_h, update_factor=1)
 
     def predict_phi_g(self, C_new):
         assert C_new.shape[1] == self.M
@@ -214,8 +216,8 @@ class MNSBM:
             phi_h = normalize_log_probs(self.update_phi_h(phi_g, gamma_kl_di, gamma_kl_sum_di, gamma_h_di, self.C, self.C_mask, self.missing))
 
             # Global updates
-            gamma_g = utils_mnsbm.update_gamma_g(self.alpha_g, phi_g, update_factor=1)
-            gamma_h = utils_mnsbm.update_gamma_h(self.alpha_h, phi_h, update_factor=1)
+            gamma_g = utils_cnsbm.update_gamma_g(self.alpha_g, phi_g, update_factor=1)
+            gamma_h = utils_cnsbm.update_gamma_h(self.alpha_h, phi_h, update_factor=1)
             gamma_kl = self.update_gamma_kl(self.alpha_pi, phi_g, phi_h, self.C, self.K, self.L, self.C_mask, self.C_1h, self.num_cat, update_factor=1, update_ind=update_ind, missing=self.missing)
 
             elbo, ll, KL_g, KL_h, KL_kl = self.elbo(phi_g, phi_h, gamma_g, gamma_h, gamma_kl, fitted=False, verbose=False)
@@ -338,8 +340,8 @@ class MNSBM:
                     print(f"Local updates did not converge in {local_max_iters} iterations.")
 
                 # intermediate global updates
-                int_gamma_g = utils_mnsbm.update_gamma_g(self.alpha_g, int_phi_g, update_factor=update_factor_g)
-                int_gamma_h = utils_mnsbm.update_gamma_h(self.alpha_h, int_phi_h, update_factor=update_factor_h)
+                int_gamma_g = utils_cnsbm.update_gamma_g(self.alpha_g, int_phi_g, update_factor=update_factor_g)
+                int_gamma_h = utils_cnsbm.update_gamma_h(self.alpha_h, int_phi_h, update_factor=update_factor_h)
                 int_gamma_kl = self.update_gamma_kl(self.alpha_pi, int_phi_g, int_phi_h, C_tmp, self.K, self.L, C_mask_tmp, C_1h_tmp, self.num_cat, update_factor=update_factor_kl, update_ind=update_ind, missing=self.missing)
 
                 # global updates
@@ -443,9 +445,9 @@ class MNSBM:
         post_h = jnp.argmax(phi_h, axis=1)
 
         if not slow:
-            return utils_mnsbm.sbm_log_lik(self.C, log_dir_mean, post_g, post_h, C_mask=self.C_mask)
+            return utils_cnsbm.sbm_log_lik(self.C, log_dir_mean, post_g, post_h, C_mask=self.C_mask)
         else:
-            return utils_mnsbm.sbm_log_lik_slow(self.C, log_dir_mean, post_g, post_h, num_cat=self.num_cat, C_mask=self.C_mask)
+            return utils_cnsbm.sbm_log_lik_slow(self.C, log_dir_mean, post_g, post_h, num_cat=self.num_cat, C_mask=self.C_mask)
         
     def ICL(self, slow=False, verbose=False):
         assert self.fitted
@@ -454,7 +456,7 @@ class MNSBM:
         K_unique = len(jnp.unique(g_labels))
         L_unique = len(jnp.unique(h_labels))
 
-        ICL_pen = ICL_penalty(self.N, self.M, K_unique, L_unique, self.num_cat)
+        ICL_pen = ICL_penalty(self.N, self.M, K_unique, L_unique, self.num_cat, num_mis=self.num_mis)
         ll = self.loglik_fitted(slow=slow)
         
         # row/col cluster entropy
@@ -474,11 +476,18 @@ class MNSBM:
         # Obtain fitted parameters and MAP
         assert self.fitted
         
-        phi_g, phi_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_kl'))
+        phi_g, phi_h, gamma_g, gamma_h, gamma_kl = (self.fitted_params[keys] for keys in ('phi_g', 'phi_h', 'gamma_g', 'gamma_h', 'gamma_kl'))
+        gamma_g_post = gamma_g/gamma_g.sum()
+        gamma_h_post = gamma_h/gamma_h.sum()
+
         cluster_argmax = np.array(jnp.argmax(gamma_kl, axis=2))
         dir_mean, dir_variance = post_dir(gamma_kl)
 
-        self.posterior_dist = {'g_labels': jnp.argmax(phi_g, 1), 'h_labels': jnp.argmax(phi_h, 1), 'cluster_argmax': cluster_argmax, 'dir_mean': dir_mean, 'dir_variance': dir_variance}
+        self.posterior_dist = {
+            'g_labels': jnp.argmax(phi_g, 1), 'h_labels': jnp.argmax(phi_h, 1),
+            'gamma_g_post': gamma_g_post, 'gamma_h_post': gamma_h_post,
+            'cluster_argmax': cluster_argmax, 'dir_mean': dir_mean, 'dir_variance': dir_variance
+        }
 
         return 1
     
@@ -540,16 +549,22 @@ class MNSBM:
         foldersave = os.path.join(folderpath, model_name)
         os.makedirs(foldersave, exist_ok=True)
 
-        post_mean = jax_array_to_csv(self.posterior_dist['dir_mean'], os.path.join(foldersave, 'sbm_fitted_gamma_kl.csv'))
-        cluster_argmax = pd.DataFrame(self.posterior_dist['cluster_argmax']).to_csv(os.path.join(foldersave, 'sbm_fitted_cluster_argmax.csv'), index=False)
+        # posterior distributions
+        post_g = pd.DataFrame(self.fitted_params['phi_g']).to_csv(os.path.join(foldersave, 'sbm_POST_phi_g.csv'), index=False)
+        post_h = pd.DataFrame(self.fitted_params['phi_h']).to_csv(os.path.join(foldersave, 'sbm_POST_phi_h.csv'), index=False)
+        post_gamma_g = pd.DataFrame(self.fitted_params['gamma_g']).to_csv(os.path.join(foldersave, 'sbm_POST_gamma_g.csv'), index=False)
+        post_gamma_h = pd.DataFrame(self.fitted_params['gamma_h']).to_csv(os.path.join(foldersave, 'sbm_POST_gamma_h.csv'), index=False)
 
-        post_g = pd.DataFrame(self.fitted_params['phi_g']).to_csv(os.path.join(foldersave, 'sbm_fitted_phi_g.csv'), index=False)
-        post_h = pd.DataFrame(self.fitted_params['phi_h']).to_csv(os.path.join(foldersave, 'sbm_fitted_phi_h.csv'), index=False)
+        # posterior MAPs
+        g_labels = pd.DataFrame(self.posterior_dist['g_labels']).to_csv(os.path.join(foldersave, 'sbm_MAP_g_labels.csv'), index=False)
+        h_labels = pd.DataFrame(self.posterior_dist['h_labels']).to_csv(os.path.join(foldersave, 'sbm_MAP_h_labels.csv'), index=False)
+        g_mean = pd.DataFrame(self.posterior_dist['gamma_g_post']).to_csv(os.path.join(foldersave, 'sbm_MAP_gamma_g.csv'), index=False)
+        h_mean = pd.DataFrame(self.posterior_dist['gamma_h_post']).to_csv(os.path.join(foldersave, 'sbm_MAP_gamma_h.csv'), index=False)
 
-        g_labels = pd.DataFrame(self.posterior_dist['g_labels']).to_csv(os.path.join(foldersave, 'sbm_fitted_g_labels.csv'), index=False)
-        h_labels = pd.DataFrame(self.posterior_dist['h_labels']).to_csv(os.path.join(foldersave, 'sbm_fitted_h_labels.csv'), index=False)
-        
-    
+        post_mean = jax_array_to_csv(self.posterior_dist['dir_mean'], os.path.join(foldersave, 'sbm_MAP_pi_kl.csv'))
+        cluster_argmax = pd.DataFrame(self.posterior_dist['cluster_argmax']).to_csv(os.path.join(foldersave, 'sbm_MAP_cluster_argmax.csv'), index=False)
+
+
     def save_jax_model(self, filepath):
         assert self.fitted
         params = {
