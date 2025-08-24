@@ -12,15 +12,7 @@ If you plan to use pickle files in an environment with NumPy < 2, you should ins
 pip install cnsbm
 ```
 
-## Option 2: Install from source
-
-```bash
-git clone https://github.com/lamke07/CNSBM.git
-cd CNSBM
-pip install .
-```
-
-## Option 3: Development installation
+## Option 2: Development installation
 
 ```bash
 git clone https://github.com/lamke07/CNSBM.git
@@ -28,21 +20,20 @@ cd CNSBM
 pip install -e .
 ```
 
-## Option 4: Using Conda (Alternative)
-
-```bash
-conda env create -f environment.yml
-conda activate cnsbm
-pip install .
-```
-
 ### GPU Support (Optional)
 
-For GPU acceleration with JAX:
+For GPU acceleration with JAX, you must manually install the correct JAX GPU wheel for your CUDA version. The pip extra `cnsbm[gpu]` is not supported.
+
+**To install JAX with CUDA support:**
+
+1. Find your CUDA version (e.g., CUDA 12).
+2. Run the following command (replace `cuda12_pip` with your CUDA version):
 
 ```bash
-pip install cnsbm[gpu]
+pip install --upgrade "jax[cuda12_pip]>=0.4.23" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
+
+See the [JAX GPU installation guide](https://github.com/google/jax#pip-installation-gpu-cuda) or [here](https://docs.jax.dev/en/latest/installation.html) for details.
 
 # Simple usage
 
