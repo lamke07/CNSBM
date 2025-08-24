@@ -8,11 +8,24 @@
 *.iml
 
 # exclude all pycache files and ipynb checkpoints
-*/_pycache_
+__pycache__/
+*/__pycache__/
+*.py[cod]
 *.pyc
+*.pyo
 *.swp
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
+
+# Python package build artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+.tox/
+.venv/
+venv/
 
 *.Rhistory
 
