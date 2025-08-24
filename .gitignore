@@ -30,7 +30,5 @@ venv/
 *.Rhistory
 
 
-ascat/
-cnasim/
-funnell/
+examples/output/
 
